@@ -4,6 +4,7 @@ from collections.abc import Callable, Coroutine
 
 import torch
 
+from sglang_omni.pipeline.stage.stream_queue import StreamItem
 from sglang_omni.proto import StagePayload
 from sglang_omni.scheduling.message import OutgoingMessage
 from sglang_omni.scheduling.streaming_simple_scheduler import StreamingSimpleScheduler
@@ -85,9 +86,26 @@ class NemotronCode2WavScheduler(StreamingSimpleScheduler):
         self.states.pop(request_id, None)
 
     @torch.inference_mode()
-    def on_stream_chunk(self, request_id: str, item) -> list[OutgoingMessage]:
+    def on_stream_chunk(
+        self, request_id: str, item: StreamItem
+    ) -> list[OutgoingMessage]:
+        codes: torch.Tensor = item.data
+        if codes.is_cuda:
+            codes_ready_event = (item.metadata or {}).get("codes_ready_event")
+            if codes_ready_event is None:
+                raise RuntimeError(
+                    f"CUDA audio codes for request {request_id!r} require a "
+                    "codes_ready_event CUDA event"
+                )
+            else:
+                device_module = torch.get_device_module(codes.device)
+                consumer_stream = device_module.current_stream(codes.device)
+                consumer_stream.wait_event(codes_ready_event)
+                codes.record_stream(consumer_stream)
+        else:
+            pass
         state = self.states.setdefault(request_id, self.new_state())
-        tail = state.codec.push(item.data)
+        tail = state.codec.push(codes)
         state.audio_parts.append(tail)
         # Chunks to the coordinator are msgpack'd, so the waveform travels in
         # the shared payload format rather than as a tensor.

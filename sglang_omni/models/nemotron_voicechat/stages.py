@@ -153,6 +153,7 @@ def speech_generation_config(model_path: str) -> dict:
 def create_talker_executor(
     model_path,
     *,
+    can_use_local_code_handoff: bool = False,
     dtype=None,
     device=None,
     gpu_id=None,
@@ -161,6 +162,7 @@ def create_talker_executor(
     **overrides,
 ):
     builder = NemotronVoiceChatTalkerEngineBuilder(
+        can_use_local_code_handoff=can_use_local_code_handoff,
         max_running_requests=1,
         context_length=context_length,
     )
