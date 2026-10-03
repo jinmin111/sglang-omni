@@ -198,7 +198,21 @@ class NemotronVoiceChatTalkerModelRunner(ModelRunner):
             noise_scale=self.noise_scale,
         )
 
+    def sample_before_post_decode(
+        self, forward_batch, schedule_batch, requests
+    ) -> bool:
+        return self.can_use_local_code_handoff
+
     def post_decode(self, result, forward_batch, schedule_batch, requests) -> None:
+        if (
+            self.can_use_local_code_handoff
+            and result is not None
+            and result.next_token_ids is not None
+            and result.next_token_ids.is_cuda
+        ):
+            self.stage_token_ids(result, result.next_token_ids)
+        else:
+            pass
         for index, request in enumerate(requests):
             inputs = request.data.talker_model_inputs
             codes = self.generate_codes(index)

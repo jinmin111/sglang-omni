@@ -97,7 +97,7 @@ class NemotronVoiceChatPipelineConfig(PipelineConfig):
     stages: list[StageConfig] = Field(default_factory=nemotron_voicechat_stages_factory)
 
     def stage_factory_kwargs(self, stage_name: str) -> dict[str, bool]:
-        if stage_name != "talker":
+        if stage_name not in ("talker", "code2wav"):
             return {}
         else:
             talker_stage = self.stage_named("talker")
